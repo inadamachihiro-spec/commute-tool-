@@ -441,7 +441,7 @@ async function callClaude(prompt, maxTokens = 1000) {
   const key = getKey();
   if(!key) throw new Error('APIキーを入力してください');
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+  const resp = await fetch('https://throbbing-bar-2a0f.inadama-chihiro.workers.dev', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
