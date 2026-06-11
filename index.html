@@ -441,10 +441,7 @@ async function callClaude(prompt, maxTokens = 1000) {
   const resp = await fetch('https://throbbing-bar-2a0f.inadama-chihiro.workers.dev', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }]
+    body: JSON.stringify({ prompt, maxTokens })
     })
   });
 
@@ -453,9 +450,11 @@ async function callClaude(prompt, maxTokens = 1000) {
     throw new Error(err.error?.message || `APIエラー (${resp.status})`);
   }
   const data = await resp.json();
-  const raw = (data.content || []).map(c => c.text || '').join('');
-  const clean = raw.replace(/```json[\s\S]*?```|```/g, '').trim();
-  return JSON.parse(clean);
+  const raw = data.text || '';
+  const clean = raw.replace(/```json|```/g, '').trim();
+ const jsonMatch = clean.match(/({[\s\S]*}|\[[\s\S]*\])/);
+if(!jsonMatch) throw new Error('解析エラー: ' + clean.substring(0, 100));
+return JSON.parse(jsonMatch[1]);
 }
 
 async function analyzeCompany() {
