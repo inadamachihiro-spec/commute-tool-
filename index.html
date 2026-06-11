@@ -381,9 +381,11 @@ async function extractExcelText(file) {
   const wb = XLSX.read(buf, { type: 'array' });
   let text = '';
   wb.SheetNames.forEach(name => {
-    text += `【シート：${name}】\n${XLSX.utils.sheet_to_csv(wb.Sheets[name])}\n\n`;
+    const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+    const lines = csv.split('\n').filter(l => l.replace(/,/g,'').trim()).slice(0, 200);
+    text += `【シート：${name}】\n${lines.join('\n')}\n\n`;
   });
-  return text;
+  return text.substring(0, 6000);
 }
 
 async function readFile(file) {
