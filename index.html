@@ -130,7 +130,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Goth
   <span class="badge">Claude AI 自動解析</span>
 </div>
 
-<div class="apikey-section">
+<div class="apikey-section" style="display:none">
   <div class="apikey-row">
     <label>🔑 Anthropic API キー</label>
     <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="saveKey(); checkConnection()">
@@ -333,8 +333,6 @@ function checkConnection() {
 }
 
 async function testConnection() {
-  const key = getKey();
-  if(!key) { alert('APIキーを入力してください'); return; }
   const dot = document.getElementById('connDot');
   const txt = document.getElementById('connText');
   txt.textContent = '接続確認中...'; dot.className = 'dot';
@@ -438,17 +436,9 @@ async function handleResumeFile(e) {
 }
 
 async function callClaude(prompt, maxTokens = 1000) {
-  const key = getKey();
-  if(!key) throw new Error('APIキーを入力してください');
-
   const resp = await fetch('https://throbbing-bar-2a0f.inadama-chihiro.workers.dev', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      
-      
-      
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: maxTokens,
@@ -467,7 +457,6 @@ async function callClaude(prompt, maxTokens = 1000) {
 }
 
 async function analyzeCompany() {
-  if(!getKey()) { alert('APIキーを入力してください'); return; }
   const text = document.getElementById('rawText').value.trim() || regFileText;
   if(!text) { alert('採用条件テキストを入力またはファイルをアップロードしてください'); return; }
 
@@ -598,7 +587,6 @@ function deleteCompany(id) {
 }
 
 async function judgeCommute() {
-  if(!getKey()) { alert('APIキーを入力してください'); return; }
   const address = document.getElementById('applicantAddress').value.trim();
   const name = document.getElementById('applicantName').value.trim() || '応募者';
   if(!address) { alert('居住地または最寄り駅を入力してください'); return; }
