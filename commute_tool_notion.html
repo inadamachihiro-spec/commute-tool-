@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>勤務エリア管理ツール</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #ffffff; --bg2: #f7f7f5; --bg3: #f0f0ec;
+  --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+  --text: #1a1a18; --text2: #6b6b67; --text3: #9a9a96;
+  --ok-bg: #eaf3de; --ok-text: #27500a; --ok-border: #7ab84a;
+  --ng-bg: #fcebeb; --ng-text: #791f1f; --ng-border: #e24b4a;
+  --c-bg: #faeeda; --c-text: #633806; --c-border: #ef9f27;
+  --info-bg: #e6f1fb; --info-text: #0c447c;
+  --radius: 10px; --radius-sm: 6px;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic UI', sans-serif; font-size: 14px; color: var(--text); background: var(--bg2); }
+.layout { max-width: 860px; margin: 0 auto; padding: 1.25rem 1.25rem 2rem; }
+
+.app-header { display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem; }
+.app-header h1 { font-size: 20px; font-weight: 600; }
+.badge { font-size: 11px; background: var(--info-bg); color: var(--info-text); padding: 3px 10px; border-radius: 20px; font-weight: 500; }
+
+.apikey-section { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+.apikey-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.apikey-row label { font-size: 12px; color: var(--text2); font-weight: 500; white-space: nowrap; }
+.apikey-row input { flex: 1; min-width: 220px; font-size: 13px; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 7px 10px; font-family: monospace; background: var(--bg2); color: var(--text); }
+.apikey-row input:focus { outline: 2px solid var(--info-text); outline-offset: 1px; }
+.apikey-status { margin-top: 8px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border2); flex-shrink: 0; }
+.dot.ok { background: var(--ok-border); }
+.dot.ng { background: var(--ng-border); }
+
+.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; gap: 2px; }
+.tab { padding: 9px 20px; font-size: 13px; cursor: pointer; border: 0.5px solid transparent; border-bottom: none; border-radius: var(--radius-sm) var(--radius-sm) 0 0; color: var(--text2); background: transparent; font-weight: 500; transition: all .15s; }
+.tab:hover { color: var(--text); background: var(--bg3); }
+.tab.active { background: var(--bg); border-color: var(--border); color: var(--text); margin-bottom: -1px; }
+.panel { display: none; } .panel.active { display: block; }
+
+.upload-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius); padding: 2rem; text-align: center; cursor: pointer; background: var(--bg); position: relative; transition: all .15s; margin-bottom: 1rem; }
+.upload-zone:hover { border-color: var(--info-text); background: var(--info-bg); }
+.upload-zone.has-file { border-style: solid; border-color: var(--ok-border); background: var(--ok-bg); }
+.upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-zone .uz-icon { font-size: 2rem; margin-bottom: 8px; }
+.upload-zone p { font-size: 13px; color: var(--text2); }
+.upload-zone strong { color: var(--text); }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ok-text); background: var(--ok-bg); border: 0.5px solid var(--ok-border); padding: 4px 10px; border-radius: 20px; margin-bottom: 12px; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.fg { display: flex; flex-direction: column; gap: 5px; }
+.fg label { font-size: 12px; color: var(--text2); font-weight: 500; }
+.fg input, .fg textarea { font-size: 13px; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 8px 10px; background: var(--bg); color: var(--text); width: 100%; font-family: inherit; }
+.fg input:focus, .fg textarea:focus { outline: 2px solid var(--info-text); outline-offset: 1px; border-color: transparent; }
+.fg textarea { min-height: 100px; resize: vertical; }
+.slabel { font-size: 11px; font-weight: 600; color: var(--text3); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
+.divider { border: none; border-top: 0.5px solid var(--border); margin: 1.25rem 0; }
+
+.status-box { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-sm); padding: .75rem 1rem; margin: .75rem 0; }
+.status-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--border2); border-top-color: var(--info-text); border-radius: 50%; animation: spin .6s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress-wrap { height: 3px; border-radius: 3px; background: var(--bg3); overflow: hidden; margin-top: 8px; }
+.progress-inner { height: 100%; border-radius: 3px; background: var(--info-text); width: 0; transition: width .4s ease; }
+
+.ai-box { border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; background: var(--bg); margin: 1rem 0; }
+.ai-box-hd { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); font-weight: 600; margin-bottom: 12px; }
+.area-section { margin-bottom: 14px; }
+.area-section:last-child { margin-bottom: 0; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; }
+.tag { font-size: 12px; padding: 4px 10px; border-radius: 20px; border: 0.5px solid; cursor: pointer; transition: opacity .15s; user-select: none; }
+.tag:hover { opacity: .65; }
+.tag-ok { background: var(--ok-bg); color: var(--ok-text); border-color: var(--ok-border); }
+.tag-ng { background: var(--ng-bg); color: var(--ng-text); border-color: var(--ng-border); }
+.tag-c  { background: var(--c-bg);  color: var(--c-text);  border-color: var(--c-border); }
+.tag::after { content: " ×"; opacity: .45; }
+.tag-view::after { content: ''; cursor: default; }
+.madd { display: flex; gap: 8px; margin-top: 8px; }
+.madd input { flex: 1; font-size: 13px; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--bg2); color: var(--text); font-family: inherit; }
+
+.btn { padding: 8px 18px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); font-weight: 500; transition: all .15s; font-family: inherit; }
+.btn:hover { background: var(--bg3); }
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+.btn-primary:hover { opacity: .82; background: var(--text); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+.btn-danger { color: var(--ng-text); border-color: var(--ng-border); }
+.btn-danger:hover { background: var(--ng-bg); }
+.action-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 1rem; }
+
+.company-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 10px; }
+.cc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cc-name { font-weight: 600; font-size: 14px; }
+.cc-meta { font-size: 12px; color: var(--text3); }
+
+.result-card { border-radius: var(--radius); padding: 1rem 1.25rem; border: 0.5px solid; margin-bottom: 8px; }
+.res-ok { background: var(--ok-bg); border-color: var(--ok-border); }
+.res-ng { background: var(--ng-bg); border-color: var(--ng-border); }
+.res-c  { background: var(--c-bg);  border-color: var(--c-border); }
+.res-header { display: flex; align-items: center; justify-content: space-between; }
+.res-name { font-weight: 600; font-size: 14px; }
+.res-badge { font-size: 12px; font-weight: 600; padding: 4px 14px; border-radius: 20px; color: #fff; }
+.b-ok { background: #3b6d11; } .b-ng { background: #a32d2d; } .b-c { background: #854f0b; }
+.res-reason { font-size: 12px; margin-top: 5px; opacity: .8; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+.stat { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-sm); padding: .75rem 1rem; text-align: center; }
+.stat-num { font-size: 22px; font-weight: 600; }
+.stat-label { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.empty { text-align: center; padding: 2.5rem; color: var(--text3); font-size: 13px; line-height: 1.8; }
+.error-box { background: var(--ng-bg); border: 0.5px solid var(--ng-border); color: var(--ng-text); border-radius: var(--radius-sm); padding: .75rem 1rem; font-size: 13px; margin: .75rem 0; }
+
+@media (max-width: 600px) {
+  .form-row { grid-template-columns: 1fr; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .layout { padding: 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<div class="app-header">
+  <span style="font-size:24px">📍</span>
+  <h1>勤務エリア管理ツール</h1>
+  <span class="badge">Claude AI 自動解析</span>
+</div>
+
+<div class="apikey-section">
+  <div class="apikey-row">
+    <label>🔑 Anthropic API キー</label>
+    <input type="password" id="apiKey" placeholder="sk-ant-..." oninput="saveKey(); checkConnection()">
+    <button class="btn btn-sm" onclick="testConnection()">接続テスト</button>
+  </div>
+  <div class="apikey-status">
+    <span class="dot" id="connDot"></span>
+    <span id="connText" style="color:var(--text3)">APIキーを入力してください</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('register')">📋 企業登録</button>
+  <button class="tab" onclick="switchTab('companies')">🏢 企業一覧</button>
+  <button class="tab" onclick="switchTab('judge')">👤 通勤可否判定</button>
+</div>
+
+<!-- 企業登録 -->
+<div id="panel-register" class="panel active">
+  <p class="slabel">採用条件ファイルのアップロード</p>
+  <div class="upload-zone" id="regZone">
+    <input type="file" accept=".pdf,.xlsx,.xls,.csv,.txt" onchange="handleRegFile(event)" id="regFile">
+    <div class="uz-icon">📂</div>
+    <p><strong>PDF・Excel・CSV・テキストをドロップ</strong>またはクリック</p>
+    <p style="margin-top:4px; font-size:12px">アップロード後、AIで解析ボタンを押してください</p>
+  </div>
+  <div id="regFileChip" style="display:none">
+    <span class="file-chip">✅ <span id="regFileName"></span></span>
+  </div>
+
+  <div class="form-row">
+    <div class="fg">
+      <label>企業名</label>
+      <input type="text" id="companyName" placeholder="例：株式会社〇〇">
+    </div>
+    <div class="fg">
+      <label>更新日</label>
+      <input type="date" id="updateDate">
+    </div>
+  </div>
+
+  <div class="fg" style="margin-bottom:12px">
+    <label>または採用条件テキストを直接貼り付け（ファイルと併用可）</label>
+    <textarea id="rawText" placeholder="メール・資料のテキストをそのまま貼り付けてもOKです"></textarea>
+  </div>
+
+  <div id="regStatus" style="display:none">
+    <div class="status-box">
+      <div class="status-row"><span class="spinner"></span><span id="regStatusText">AIが解析中...</span></div>
+      <div class="progress-wrap"><div class="progress-inner" id="regProgress"></div></div>
+    </div>
+  </div>
+  <div id="regError" class="error-box" style="display:none"></div>
+
+  <div id="aiResult" style="display:none">
+    <div class="ai-box">
+      <div class="ai-box-hd">✨ AI解析結果（タグをクリックで削除・手動追加も可）</div>
+      <div class="area-section">
+        <p class="slabel" style="margin-bottom:6px">通勤OK</p>
+        <div class="tags" id="okTags"></div>
+        <div class="madd">
+          <input type="text" id="addOk" placeholder="路線・エリア名を追加" onkeydown="if(event.key==='Enter')addTag('ok')">
+          <button class="btn btn-sm" onclick="addTag('ok')">＋追加</button>
+        </div>
+      </div>
+      <div class="area-section">
+        <p class="slabel" style="margin-bottom:6px">通勤NG</p>
+        <div class="tags" id="ngTags"></div>
+        <div class="madd">
+          <input type="text" id="addNg" placeholder="路線・エリア名を追加" onkeydown="if(event.key==='Enter')addTag('ng')">
+          <button class="btn btn-sm" onclick="addTag('ng')">＋追加</button>
+        </div>
+      </div>
+      <div class="area-section">
+        <p class="slabel" style="margin-bottom:6px">要相談</p>
+        <div class="tags" id="cTags"></div>
+        <div class="madd">
+          <input type="text" id="addC" placeholder="路線・エリア名を追加" onkeydown="if(event.key==='Enter')addTag('c')">
+          <button class="btn btn-sm" onclick="addTag('c')">＋追加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="btn" onclick="clearReg()">クリア</button>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeCompany()">✨ AIで解析</button>
+    <button class="btn btn-primary" id="saveBtn" onclick="saveCompany()" style="display:none">✅ 登録する</button>
+  </div>
+</div>
+
+<!-- 企業一覧 -->
+<div id="panel-companies" class="panel">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem">
+    <p class="slabel" style="margin-bottom:0">登録企業一覧</p>
+    <input type="text" placeholder="企業名・路線で検索..." style="width:200px; font-size:12px; border:0.5px solid var(--border2); border-radius:var(--radius-sm); padding:6px 10px; background:var(--bg); color:var(--text); font-family:inherit;" oninput="filterCompanies(this.value)">
+  </div>
+  <div id="statGrid" style="display:none" class="stat-grid">
+    <div class="stat"><div class="stat-num" id="statTotal">0</div><div class="stat-label">登録企業数</div></div>
+    <div class="stat"><div class="stat-num" id="statOk" style="color:var(--ok-text)">0</div><div class="stat-label">OK路線数（合計）</div></div>
+    <div class="stat"><div class="stat-num" id="statUpdated">-</div><div class="stat-label">最終更新</div></div>
+  </div>
+  <div id="companyList">
+    <div class="empty">🏢<br>まだ企業が登録されていません<br>「企業登録」タブからファイルをアップロードしてください</div>
+  </div>
+</div>
+
+<!-- 通勤可否判定 -->
+<div id="panel-judge" class="panel">
+  <p class="slabel">履歴書アップロード</p>
+  <div class="upload-zone" id="resumeZone">
+    <input type="file" accept=".pdf,.txt" onchange="handleResumeFile(event)" id="resumeFile">
+    <div class="uz-icon">📄</div>
+    <p><strong>履歴書をドロップ</strong>またはクリック（PDF・テキスト対応）</p>
+    <p style="margin-top:4px; font-size:12px">AIが住所・最寄り駅を自動抽出します</p>
+  </div>
+  <div id="resumeFileChip" style="display:none">
+    <span class="file-chip">✅ <span id="resumeFileName"></span></span>
+  </div>
+
+  <div id="resumeStatus" style="display:none">
+    <div class="status-box">
+      <div class="status-row"><span class="spinner"></span><span id="resumeStatusText">履歴書を解析中...</span></div>
+      <div class="progress-wrap"><div class="progress-inner" id="resumeProgress"></div></div>
+    </div>
+  </div>
+
+  <div class="form-row" style="margin-top:12px">
+    <div class="fg">
+      <label>応募者名（自動入力 or 手動）</label>
+      <input type="text" id="applicantName" placeholder="例：山田 太郎">
+    </div>
+    <div class="fg">
+      <label>居住地・最寄り駅（自動入力 or 手動）</label>
+      <input type="text" id="applicantAddress" placeholder="例：名古屋市千種区 / 千種駅（東山線）">
+    </div>
+  </div>
+
+  <div id="judgeStatus" style="display:none">
+    <div class="status-box">
+      <div class="status-row"><span class="spinner"></span><span id="judgeStatusText">通勤可否を判定中...</span></div>
+      <div class="progress-wrap"><div class="progress-inner" id="judgeProgress"></div></div>
+    </div>
+  </div>
+  <div id="judgeError" class="error-box" style="display:none"></div>
+
+  <div class="action-row" style="margin-bottom:1rem">
+    <button class="btn btn-primary" id="judgeBtn" onclick="judgeCommute()">🔍 全社まとめて判定</button>
+  </div>
+
+  <div id="judgeResults" style="display:none">
+    <hr class="divider">
+    <p class="slabel">判定結果</p>
+    <div id="judgeResultList"></div>
+  </div>
+</div>
+
+</div><!-- /layout -->
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const STATION_MASTER = {
+  "東海道本線（名古屋〜豊橋）":["尾頭橋","金山","熱田","笠寺","大高","南大高","共和","大府","刈谷","野田新町","東刈谷","三河安城","安城","岡崎","幸田","蒲郡","豊橋"],
+  "東海道本線（名古屋〜岐阜）":["名古屋","枇杷島","清州","稲沢","尾張一宮","木曽川","岐阜"],
+  "中央本線":["金山","鶴舞","千種","大曽根","新守山","勝川","春日井","神領","高蔵寺","多治見","土岐市","瑞浪","恵那","中津川"],
+  "関西本線":["八田","春田","蟹江","永和","弥富","長島","桑名","富田","四日市","亀山"],
+  "高山本線":["長森","那加","蘇原","各務ヶ原","鵜沼","美濃太田","下呂","髙山","猪谷"],
+  "飯田線":["豊川","新城","本長篠","三河大野","湯谷温泉","中部天竜","佐久間","水窪"],
+  "東山線":["藤が丘","本郷","上社","一社","星ヶ丘","東山公園","本山","覚王山","池下","今池","千種","新栄町","栄","伏見","名古屋","亀島","本陣","中村日赤","中村公園","岩塚","八田"],
+  "桜通線":["徳重","神沢","相生山","鳴子北","野並","鶴里","新瑞橋","瑞穂区役所","桜山","御器所","吹上","今池","久屋大通","丸の内","国際センター","名古屋","中村区役所"],
+  "名城線":["名古屋大学","八事日赤","八事","新瑞橋","堀田","神宮西","金山","東別院","上前津","矢場町","栄","久屋大通","市役所","名城公園","黒川","平安通","大曽根","砂田橋","茶屋ヶ坂","本山"],
+  "鶴舞線":["赤池","平針","原","植田","塩釜口","八事","いりなか","川名","御器所","荒畑","鶴舞","上前津","大須観音","伏見","丸の内","浅間町","浄心","庄内通","庄内緑地公園","上小田井"],
+  "名鉄名古屋本線":["名鉄名古屋","山王","金山","神宮前","堀田","呼続","桜","本笠寺","鳴海","有松","前後","豊明","富士松","一ツ木","知立","矢作橋","岡崎公園前","東岡崎","豊橋"],
+  "名鉄常滑線":["名鉄名古屋","山王","金山","神宮前","道徳","大江","大同町","柴田","名和","太田川","尾張横須賀","寺本","朝倉","古見","長浦","日長","新舞子","大野町","常滑","中部国際空港"],
+  "名鉄三河線":["猿投","平戸橋","越戸","梅坪","豊田市","上挙母","土橋","竹村","若林","三河知立","知立","刈谷","刈谷市","吉浜","三河高浜","高浜港","北新川","新川町","碧南"],
+  "近鉄名古屋線":["近鉄名古屋","米野","黄金","烏森","近鉄八田","伏屋","戸田","近鉄蟹江","富吉","近鉄弥富","近鉄長島","桑名","益生","川越富洲原","近鉄富田","近鉄四日市","白子"],
+  "愛知環状鉄道":["中水野","瀬戸市","瀬戸口","八草","保見","貝津","四郷","新豊田","三河豊田","永覚","三河上郷","北野桝塚","大門","北岡崎","中岡崎","岡崎公園前"],
+};
+
+let companies = JSON.parse(localStorage.getItem('wc_companies') || '[]');
+let currentAreas = { ok:[], ng:[], consult:[] };
+let regFileText = '';
+
+window.onload = () => {
+  const k = localStorage.getItem('wc_apikey');
+  if(k) { document.getElementById('apiKey').value = k; checkConnection(); }
+  document.getElementById('updateDate').value = new Date().toISOString().split('T')[0];
+};
+
+function saveKey() { localStorage.setItem('wc_apikey', document.getElementById('apiKey').value.trim()); }
+function getKey() { return document.getElementById('apiKey').value.trim(); }
+
+function checkConnection() {
+  const key = getKey();
+  const dot = document.getElementById('connDot');
+  const txt = document.getElementById('connText');
+  if(!key) { dot.className = 'dot'; txt.textContent = 'APIキーを入力してください'; txt.style.color = 'var(--text3)'; return; }
+  dot.className = 'dot'; txt.textContent = 'キー入力済み（接続テストで確認）'; txt.style.color = 'var(--text2)';
+}
+
+async function testConnection() {
+  const key = getKey();
+  if(!key) { alert('APIキーを入力してください'); return; }
+  const dot = document.getElementById('connDot');
+  const txt = document.getElementById('connText');
+  txt.textContent = '接続確認中...'; dot.className = 'dot';
+  try {
+    await callClaude('こんにちは。「OK」とだけ返してください。', 10);
+    dot.className = 'dot ok'; txt.textContent = '接続OK'; txt.style.color = 'var(--ok-text)';
+  } catch(e) {
+    dot.className = 'dot ng'; txt.textContent = 'エラー：' + e.message; txt.style.color = 'var(--ng-text)';
+  }
+}
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${t}')"]`).classList.add('active');
+  document.getElementById('panel-' + t).classList.add('active');
+  if(t === 'companies') renderCompanies();
+}
+
+function prog(id, pct, dur=600) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  const s = parseFloat(el.style.width) || 0;
+  const d = pct - s, t0 = Date.now();
+  (function step() {
+    const p = Math.min(1, (Date.now() - t0) / dur);
+    el.style.width = (s + d * p) + '%';
+    if(p < 1) requestAnimationFrame(step);
+  })();
+}
+
+async function extractPdfText(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let text = '';
+  for(let i = 1; i <= Math.min(pdf.numPages, 20); i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(s => s.str).join(' ') + '\n';
+  }
+  return text;
+}
+
+async function extractExcelText(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  let text = '';
+  wb.SheetNames.forEach(name => {
+    text += `【シート：${name}】\n${XLSX.utils.sheet_to_csv(wb.Sheets[name])}\n\n`;
+  });
+  return text;
+}
+
+async function readFile(file) {
+  if(file.name.match(/\.pdf$/i)) return await extractPdfText(file);
+  if(file.name.match(/\.xlsx?$/i)) return await extractExcelText(file);
+  return new Promise(res => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result || '');
+    r.onerror = () => res('');
+    r.readAsText(file, 'UTF-8');
+  });
+}
+
+async function handleRegFile(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('regZone').classList.add('has-file');
+  document.getElementById('regFileChip').style.display = 'block';
+  document.getElementById('regFileName').textContent = file.name;
+  if(!document.getElementById('companyName').value) {
+    document.getElementById('companyName').value = file.name.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ');
+  }
+  regFileText = await readFile(file);
+  if(regFileText) document.getElementById('rawText').value = regFileText.substring(0, 5000);
+}
+
+async function handleResumeFile(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('resumeZone').classList.add('has-file');
+  document.getElementById('resumeFileChip').style.display = 'block';
+  document.getElementById('resumeFileName').textContent = file.name;
+  const text = await readFile(file);
+  document.getElementById('resumeStatus').style.display = 'block';
+  document.getElementById('resumeStatusText').textContent = 'AIが履歴書を解析中...';
+  prog('resumeProgress', 40, 500);
+  const stationList = Object.entries(STATION_MASTER).map(([l, ss]) => `${l}: ${ss.join('、')}`).join('\n');
+  const prompt = `以下の履歴書テキストから応募者の氏名・住所・最寄り駅を抽出してください。\n\n【路線・駅マスタ】\n${stationList}\n\n【履歴書テキスト】\n${text.substring(0, 4000)}\n\nJSON形式のみで返してください：\n{"name":"氏名","address":"住所","station":"最寄り駅と路線名"}`;
+  try {
+    prog('resumeProgress', 75, 700);
+    const res = await callClaude(prompt, 400);
+    prog('resumeProgress', 100, 200);
+    if(res.name) document.getElementById('applicantName').value = res.name;
+    const parts = [res.address, res.station].filter(Boolean);
+    if(parts.length) document.getElementById('applicantAddress').value = parts.join(' / ');
+  } catch(err) {
+    document.getElementById('resumeStatusText').textContent = '自動抽出に失敗。手動で入力してください：' + err.message;
+  }
+  setTimeout(() => { document.getElementById('resumeStatus').style.display = 'none'; }, 1200);
+}
+
+async function callClaude(prompt, maxTokens = 1000) {
+  const key = getKey();
+  if(!key) throw new Error('APIキーを入力してください');
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-allow-browser': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if(!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || `APIエラー (${resp.status})`);
+  }
+  const data = await resp.json();
+  const raw = (data.content || []).map(c => c.text || '').join('');
+  const clean = raw.replace(/```json[\s\S]*?```|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+async function analyzeCompany() {
+  if(!getKey()) { alert('APIキーを入力してください'); return; }
+  const text = document.getElementById('rawText').value.trim() || regFileText;
+  if(!text) { alert('採用条件テキストを入力またはファイルをアップロードしてください'); return; }
+
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('regStatus').style.display = 'block';
+  document.getElementById('regError').style.display = 'none';
+  document.getElementById('regStatusText').textContent = 'AIがエリア情報を抽出中...';
+  prog('regProgress', 15, 300);
+
+  const stationList = Object.entries(STATION_MASTER).map(([l, ss]) => `${l}: ${ss.join('、')}`).join('\n');
+  const prompt = `以下の採用条件テキストを解析し、勤務エリアをOK/NG/要相談に分類してください。\n\n【駅・路線マスタ（参照用）】\n${stationList}\n\n【採用条件テキスト】\n${text.substring(0, 5000)}\n\n以下のJSON形式のみで返してください（前置き・説明不要）：\n{"ok":["路線名またはエリア名"],"ng":["路線名またはエリア名"],"consult":["路線名またはエリア名"]}`;
+
+  try {
+    prog('regProgress', 50, 900);
+    const parsed = await callClaude(prompt, 1000);
+    prog('regProgress', 100, 200);
+    currentAreas = { ok: parsed.ok || [], ng: parsed.ng || [], consult: parsed.consult || [] };
+    renderTags();
+    document.getElementById('aiResult').style.display = 'block';
+    document.getElementById('saveBtn').style.display = 'inline-flex';
+  } catch(err) {
+    document.getElementById('regError').textContent = '❌ エラー：' + err.message;
+    document.getElementById('regError').style.display = 'block';
+  }
+  setTimeout(() => { document.getElementById('regStatus').style.display = 'none'; }, 600);
+  document.getElementById('analyzeBtn').disabled = false;
+}
+
+function renderTags() {
+  renderGroup('okTags', currentAreas.ok, 'ok');
+  renderGroup('ngTags', currentAreas.ng, 'ng');
+  renderGroup('cTags', currentAreas.consult, 'c');
+}
+function renderGroup(id, items, type) {
+  const key = type === 'c' ? 'consult' : type;
+  document.getElementById(id).innerHTML = items.map((t, i) =>
+    `<span class="tag tag-${type}" onclick="removeTag('${key}',${i})">${t}</span>`
+  ).join('');
+}
+function removeTag(key, i) { currentAreas[key].splice(i, 1); renderTags(); }
+function addTag(type) {
+  const key = type === 'c' ? 'consult' : type;
+  const inputId = { ok: 'addOk', ng: 'addNg', c: 'addC' }[type];
+  const val = document.getElementById(inputId).value.trim();
+  if(!val) return;
+  currentAreas[key].push(val);
+  document.getElementById(inputId).value = '';
+  renderTags();
+  document.getElementById('aiResult').style.display = 'block';
+}
+
+function saveCompany() {
+  const name = document.getElementById('companyName').value.trim();
+  if(!name) { alert('企業名を入力してください'); return; }
+  if(!currentAreas.ok.length && !currentAreas.ng.length && !currentAreas.consult.length) {
+    alert('エリア情報を入力してください'); return;
+  }
+  const company = {
+    id: Date.now(), name,
+    updatedAt: document.getElementById('updateDate').value || new Date().toISOString().split('T')[0],
+    areas: JSON.parse(JSON.stringify(currentAreas))
+  };
+  const idx = companies.findIndex(c => c.name === name);
+  if(idx >= 0) companies[idx] = company; else companies.push(company);
+  localStorage.setItem('wc_companies', JSON.stringify(companies));
+  clearReg();
+  switchTab('companies');
+}
+
+function clearReg() {
+  ['companyName', 'rawText'].forEach(id => document.getElementById(id).value = '');
+  ['aiResult', 'saveBtn', 'regError'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+  document.getElementById('saveBtn').style.display = 'none';
+  document.getElementById('regZone').classList.remove('has-file');
+  document.getElementById('regFileChip').style.display = 'none';
+  document.getElementById('regFile').value = '';
+  currentAreas = { ok: [], ng: [], consult: [] };
+  regFileText = '';
+}
+
+function renderCompanies(filter = '') {
+  const list = document.getElementById('companyList');
+  const filtered = companies.filter(c =>
+    !filter || c.name.includes(filter) || (c.areas.ok || []).some(a => a.includes(filter))
+  );
+  document.getElementById('statGrid').style.display = companies.length ? 'grid' : 'none';
+  if(companies.length) {
+    document.getElementById('statTotal').textContent = companies.length;
+    document.getElementById('statOk').textContent = companies.reduce((s, c) => s + (c.areas.ok || []).length, 0);
+    document.getElementById('statUpdated').textContent = companies.slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]?.updatedAt || '-';
+  }
+  if(!filtered.length) {
+    list.innerHTML = `<div class="empty">🏢<br>${companies.length ? '該当なし' : 'まだ登録されていません'}</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(c => `
+    <div class="company-card">
+      <div class="cc-header">
+        <span class="cc-name">🏢 ${c.name}</span>
+        <span class="cc-meta">更新：${c.updatedAt}</span>
+      </div>
+      ${(c.areas.ok||[]).length?`<div class="area-section"><p class="slabel" style="margin-bottom:5px">通勤OK</p><div class="tags">${c.areas.ok.map(t=>`<span class="tag tag-ok tag-view">${t}</span>`).join('')}</div></div>`:''}
+      ${(c.areas.ng||[]).length?`<div class="area-section"><p class="slabel" style="margin-bottom:5px">通勤NG</p><div class="tags">${c.areas.ng.map(t=>`<span class="tag tag-ng tag-view">${t}</span>`).join('')}</div></div>`:''}
+      ${(c.areas.consult||[]).length?`<div class="area-section"><p class="slabel" style="margin-bottom:5px">要相談</p><div class="tags">${c.areas.consult.map(t=>`<span class="tag tag-c tag-view">${t}</span>`).join('')}</div></div>`:''}
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px">
+        <button class="btn btn-sm" onclick="editCompany(${c.id})">✏️ 編集</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteCompany(${c.id})">🗑 削除</button>
+      </div>
+    </div>`).join('');
+}
+function filterCompanies(v) { renderCompanies(v); }
+function editCompany(id) {
+  const c = companies.find(x => x.id === id);
+  if(!c) return;
+  switchTab('register');
+  document.getElementById('companyName').value = c.name;
+  document.getElementById('updateDate').value = c.updatedAt;
+  currentAreas = JSON.parse(JSON.stringify(c.areas));
+  renderTags();
+  document.getElementById('aiResult').style.display = 'block';
+  document.getElementById('saveBtn').style.display = 'inline-flex';
+}
+function deleteCompany(id) {
+  if(!confirm('削除しますか？')) return;
+  companies = companies.filter(x => x.id !== id);
+  localStorage.setItem('wc_companies', JSON.stringify(companies));
+  renderCompanies();
+}
+
+async function judgeCommute() {
+  if(!getKey()) { alert('APIキーを入力してください'); return; }
+  const address = document.getElementById('applicantAddress').value.trim();
+  const name = document.getElementById('applicantName').value.trim() || '応募者';
+  if(!address) { alert('居住地または最寄り駅を入力してください'); return; }
+  if(!companies.length) { alert('先に企業を登録してください'); return; }
+
+  document.getElementById('judgeBtn').disabled = true;
+  document.getElementById('judgeStatus').style.display = 'block';
+  document.getElementById('judgeError').style.display = 'none';
+  document.getElementById('judgeStatusText').textContent = 'AIが通勤可否を判定中...';
+  prog('judgeProgress', 20, 400);
+
+  const stationList = Object.entries(STATION_MASTER).map(([l, ss]) => `${l}: ${ss.join('、')}`).join('\n');
+  const companyData = companies.map(c =>
+    `【${c.name}】\nOK: ${(c.areas.ok||[]).join('、')||'なし'}\nNG: ${(c.areas.ng||[]).join('、')||'なし'}\n要相談: ${(c.areas.consult||[]).join('、')||'なし'}`
+  ).join('\n\n');
+
+  const prompt = `応募者「${name}」の居住地「${address}」について、各企業への通勤可否を判定してください。\n\n【路線・駅マスタ】\n${stationList}\n\n【各社エリア条件】\n${companyData}\n\nJSON配列のみで返してください（前置き不要）：\n[{"company":"企業名","status":"ok","reason":"判定理由（30文字以内）"}]\nstatusは"ok","ng","consult"のいずれか。`;
+
+  try {
+    prog('judgeProgress', 55, 900);
+    const results = await callClaude(prompt, 1000);
+    prog('judgeProgress', 100, 200);
+    document.getElementById('judgeResultList').innerHTML = results.map(r => {
+      const s = r.status === 'consult' ? 'c' : r.status;
+      return `<div class="result-card res-${s}"><div class="res-header"><span class="res-name">${r.company}</span><span class="res-badge b-${s}">${r.status==='ok'?'✓ 通勤OK':r.status==='ng'?'✗ 通勤NG':'△ 要相談'}</span></div><p class="res-reason">${r.reason}</p></div>`;
+    }).join('');
+    document.getElementById('judgeResults').style.display = 'block';
+  } catch(err) {
+    document.getElementById('judgeError').textContent = '❌ エラー：' + err.message;
+    document.getElementById('judgeError').style.display = 'block';
+  }
+  setTimeout(() => { document.getElementById('judgeStatus').style.display = 'none'; }, 600);
+  document.getElementById('judgeBtn').disabled = false;
+}
+</script>
+</body>
+</html>
